@@ -1,0 +1,13 @@
+{
+  "name": "colabdraw",
+  "version": "1.0.0",
+  "main": "server.js",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.17.1",
+    "global": "^4.4.0",
+    "mongoose": "^5.6.6",
+    "nodemon": "^1.19.1",
+    "socket.io": "^2.2.0"
+  }
+}
