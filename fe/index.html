@@ -45,7 +45,6 @@
         let stroke = slider.value;
         let color = colorInput.value;
         let list = new Array();
-        let backlist = new Array();
         let socket = null;
 
         window.onresize = function () {
@@ -56,6 +55,44 @@
         canvas.width = document.body.clientWidth;
         canvas.height = document.body.clientHeight * 0.8;
 
+
+        enableCanvas(false);
+
+        function enableCanvas(enable = true) {
+            if (enable) {
+                enableCanvas = () => { return false; }
+                canvas.style.backgroundColor = 'white';
+                canvas.onmousedown = function (event) {
+                    drawning = true;
+                };
+
+                canvas.onmouseup = function (event) {
+                    drawning = false;
+                    sync();
+                };
+
+                canvas.onmousemove = function (event) {
+                    if (drawning) {
+                        addCircle(event.x, event.y, stroke, color);
+                        list.push({ x: event.x, y: event.y, stroke, color });
+                    }
+                };
+            } else {
+                canvas.style.backgroundColor = 'gray';
+                canvas.onmousedown = function (event) {
+                    return false;
+                };
+
+                canvas.onmouseup = function (event) {
+                    return false;
+                };
+
+                canvas.onmousemove = function (event) {
+                    return false;
+                };
+            }
+        }
+
         function connect() {
             let socket = io();
 
@@ -64,25 +101,27 @@
             });
 
             socket.on('response-state', function (state) {
-                load(state);
+                loadCanvas(state);
+                enableCanvas(true);
             });
 
             socket.on('response-sync', function (state) {
                 if (state.page === page && state.fp !== myHash) {
-                    socket.emit('request-state', { page: page });
+                    buildFromArray(state.list);
                 }
             });
-            socket.emit('request-state', { page: page });
+            socket.emit('request-state', { page: page, first: true });
 
             return socket;
         }
 
-        function clear_canvas(forceSync = false) {
+        function clear_canvas(hasToClearOnServer = false) {
             console.log('Poof...');
             context.clearRect(0, 0, canvas.width, canvas.height);
             list = new Array();
-            if (forceSync) {
-                sync();
+            if (hasToClearOnServer) {
+                console.log('Cleaning on server...');
+                clearPage();
             }
         }
 
@@ -97,17 +136,11 @@
             arr.forEach((el) => { addCircle(el.x, el.y, el.stroke, el.color) });
         }
 
-
-        function load(state) {
+        function loadCanvas(state) {
             clear_canvas();
 
-            list = state.list || [];
-            lastLoaded = state.fp;
-
-            if (lastLoaded !== myHash) {
-                list.push(...backlist)
-                backlist = new Array();
-                buildFromArray(list);
+            if (state.fp !== myHash) {
+                (state.actions || []).forEach((action) => { buildFromArray(action) });
             }
         }
 
@@ -118,29 +151,13 @@
         }
 
         function sync() {
-            socket.emit('request-sync', { page, list: list, fp: myHash });
+            socket.emit('request-sync', { page, list, fp: myHash });
+            list = new Array();
         }
 
-        canvas.onmousedown = function (event) {
-            //console.log(event);
-            drawning = true;
-        };
-
-        canvas.onmouseup = function (event) {
-            //console.log(event);
-            drawning = false;
-            list.push(...backlist);
-            backlist = new Array();
-            sync();
-        };
-
-        canvas.onmousemove = function (event) {
-            if (drawning) {
-                console.log(color);
-                addCircle(event.x, event.y, stroke, color);
-                backlist.push({ x: event.x, y: event.y, stroke, color });
-            }
-        };
+        function clearPage() {
+            socket.emit('request-clear', { page, fp: myHash });
+        }
 
         slider.oninput = function (event) {
             stroke = parseInt(event.srcElement.value);

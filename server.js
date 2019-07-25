@@ -7,7 +7,16 @@ const { BrushPainter, db } = require('./database');
 
 async function updatePage(event) {
     console.log('Updating brush...');
-    return await BrushPainter.findOneAndUpdate({ page: event.page }, { fp: event.fp, list: event.list });
+    let curPage = await getPage(event.page);
+    let { newActions, newFp } = { newActions: curPage.actions, newFp: event.fp };
+    newActions.push(event.list);
+
+    return await BrushPainter.updateOne({ page: event.page }, { fp: newFp, actions: newActions });
+}
+
+async function clearPage(event) {
+    console.log(event);
+    return await BrushPainter.updateOne({ page: event.page }, { actions: [] });
 }
 
 async function createPage(page) {
@@ -24,7 +33,6 @@ async function getPage(page) {
     return result;
 }
 
-
 app.use('/', express.static('fe'));
 
 io.on('connection', function (socket) {
@@ -40,9 +48,16 @@ io.on('connection', function (socket) {
         console.log('Synchronizing...');
         if (event && event.hasOwnProperty('page')) {
             updatePage(event);
-            socket.broadcast.emit('response-sync', { page: event.page, fp: event.fp });
+            socket.broadcast.emit('response-sync', { page: event.page, fp: event.fp, list: event.list });
         } else {
             socket.emit('response-error', { message: 'No page in payload' })
+        }
+    });
+
+    socket.on('request-clear', async function (event) {
+        if (event && event.hasOwnProperty('page')) {
+            let updatedState = await clearPage(event);
+            socket.broadcast.emit('response-state', updatedState);
         }
     });
 });
